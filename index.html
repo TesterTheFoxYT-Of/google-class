@@ -10,7 +10,7 @@
       margin: 0;
       display: flex;
       height: 100vh;
-      background: #0e0e0e;
+      background: #0d0d0d;
       color: #fff;
       font-family: "Segoe UI", sans-serif;
       overflow: hidden;
@@ -39,6 +39,7 @@
       border-bottom: 1px solid #2a2a2a;
       cursor: pointer;
       transition: background 0.2s;
+      word-wrap: break-word;
     }
     .game-item:hover {
       background: #292929;
@@ -99,39 +100,46 @@
   <script>
     const username = "TesterTheFoxYT-Of";
     const repo = "google-class";
-    const branch = "main"; // измени, если твоя ветка не main
+    const branch = "main"; // измени, если другая ветка
 
     const gamesListEl = document.getElementById("games-list");
     const frame = document.getElementById("game-frame");
     const backBtn = document.getElementById("back-button");
     const titleEl = document.getElementById("game-title");
 
+    // Загружает все файлы из репозитория рекурсивно
+    async function fetchDir(url, proxy) {
+      const resp = await fetch(proxy + encodeURIComponent(url));
+      const data = await resp.json();
+      let files = [];
+      for (const item of data) {
+        if (item.type === "dir") {
+          const sub = await fetchDir(item.url, proxy);
+          files = files.concat(sub);
+        } else if (item.name.endsWith(".html") && item.name.toLowerCase() !== "index.html" && item.name.toLowerCase() !== "launcher.html") {
+          files.push(item);
+        } else if (item.name.toLowerCase() === "index.html" && item.path !== "index.html") {
+          files.push(item);
+        }
+      }
+      return files;
+    }
+
     async function loadGames() {
       try {
         const proxy = "https://api.allorigins.win/raw?url=";
         const apiUrl = `https://api.github.com/repos/${username}/${repo}/contents/`;
-        const resp = await fetch(proxy + encodeURIComponent(apiUrl));
-        const data = await resp.json();
-        const folders = data.filter(item => item.type === "dir");
+        const files = await fetchDir(apiUrl, proxy);
 
-        const games = [];
-
-        for (const folder of folders) {
-          const innerResp = await fetch(proxy + encodeURIComponent(folder.url));
-          const inner = await innerResp.json();
-          const hasIndex = inner.find(f => f.name === "index.html");
-          if (hasIndex) {
-            games.push({
-              title: folder.name,
-              path: `https://${username}.github.io/${repo}/${folder.name}/index.html`
-            });
-          }
-        }
-
-        if (games.length === 0) {
-          gamesListEl.innerHTML = "<div id='loading'>Игры не найдены.</div>";
+        if (files.length === 0) {
+          gamesListEl.innerHTML = "<div id='loading'>HTML-файлы не найдены.</div>";
           return;
         }
+
+        const games = files.map(f => ({
+          title: f.path,
+          path: `https://${username}.github.io/${repo}/${f.path}`
+        }));
 
         renderList(games);
       } catch (err) {
